@@ -19,6 +19,11 @@ def _():
     import numpy as np
     import matplotlib.pyplot as plt
     from matplotlib.ticker import AutoMinorLocator
+    rc_tex = {
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "STIXGeneral", "DejaVu Serif"],
+        "mathtext.fontset": "stix",
+    }
 
     # Physical & orbital constants
     C_LIGHT = 299_792_458.0       # Speed of light (m/s)
@@ -44,7 +49,6 @@ def _():
         11: -17.5,
         12: -20.0,
     }
-
     return (
         AutoMinorLocator,
         C_LIGHT,
@@ -59,6 +63,7 @@ def _():
         mo,
         np,
         plt,
+        rc_tex,
     )
 
 
@@ -139,6 +144,7 @@ def _(
         avg_contacts_per_day = np.where(ranges_km < altitude_km, 0.0, 86400.0 * contacts_per_sec)
 
         return avg_contact_min_per_day, avg_contacts_per_day
+
 
     def compute_pass_geometry(
         orbit_alt_km,
@@ -225,6 +231,7 @@ def _(
             "erg_contacts_per_day": erg_contacts_per_day,
             "max_ergodic_min_per_day": max_ergodic_min_per_day,
         }
+
 
     def evaluate_lora_mode(
         bw_khz,
@@ -365,7 +372,7 @@ def _(
             "full_pass_closed": bool(np.all(usable_mask)),
         }
 
-    return compute_ergodic_contact_curve, compute_pass_geometry, evaluate_lora_mode
+    return compute_pass_geometry, evaluate_lora_mode
 
 
 @app.cell
@@ -625,7 +632,6 @@ def _(
         optimal_mode = best_throughput_mode
     else:
         optimal_mode = best_balanced_mode
-
     return (
         all_modes,
         best_balanced_mode,
@@ -676,88 +682,96 @@ def _(
                     tag = f"0% Pass\n({cell_mode['bottleneck']})"
                 row_annot.append(tag)
             cell_annotations.append(row_annot)
+        rc_tex = {
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "STIXGeneral", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+        }
 
-        fig, (ax_hm, ax_pareto) = plt.subplots(1, 2, figsize=(12.0, 5.0))
-
-        # Left: 6x4 (SF x BW) Usable Pass Coverage & Daily Data Heatmap
-        im = ax_hm.imshow(cov_grid, cmap="RdYlGn", vmin=0.0, vmax=100.0, aspect="auto")
-        ax_hm.set_xticks(range(len(LORA_BWS_KHZ)))
-        ax_hm.set_xticklabels([f"{bw:g} kHz" for bw in LORA_BWS_KHZ])
-        ax_hm.set_yticks(range(len(LORA_SFS)))
-        ax_hm.set_yticklabels([f"SF{sf}" for sf in LORA_SFS])
-        ax_hm.set_xlabel("LoRa Bandwidth $BW$")
-        ax_hm.set_ylabel("Spreading Factor $SF$")
-        ax_hm.set_title("Usable Pass Coverage (%) & Daily Yield (CR 4/5)")
-
-        for i in range(len(LORA_SFS)):
-            for j in range(len(LORA_BWS_KHZ)):
-                is_opt = (
-                    LORA_SFS[i] == optimal_mode["sf"]
-                    and LORA_BWS_KHZ[j] == optimal_mode["bw_khz"]
-                )
-                txt_color = "black" if cov_grid[i, j] >= 25.0 else "white"
-                ax_hm.text(
-                    j,
-                    i,
-                    cell_annotations[i][j],
-                    ha="center",
-                    va="center",
-                    fontsize=7.5,
-                    fontweight="bold" if is_opt else "normal",
-                    color=txt_color,
-                )
-                if is_opt:
-                    ax_hm.add_patch(
-                        plt.Rectangle(
-                            (j - 0.48, i - 0.48),
-                            0.96,
-                            0.96,
-                            fill=False,
-                            edgecolor="navy",
-                            linewidth=2.8,
-                        )
+        with plt.rc_context(rc_tex):
+            fig, (ax_hm, ax_pareto) = plt.subplots(1, 2, figsize=(12.0, 5.0))
+    
+            # Left: 6x4 (SF x BW) Usable Pass Coverage & Daily Data Heatmap
+            im = ax_hm.imshow(cov_grid, cmap="RdYlGn", vmin=0.0, vmax=100.0, aspect="auto")
+            ax_hm.set_xticks(range(len(LORA_BWS_KHZ)))
+            ax_hm.set_xticklabels([f"{bw:g} kHz" for bw in LORA_BWS_KHZ])
+            ax_hm.set_yticks(range(len(LORA_SFS)))
+            ax_hm.set_yticklabels([f"SF{sf}" for sf in LORA_SFS])
+            ax_hm.set_xlabel("LoRa Bandwidth $BW$")
+            ax_hm.set_ylabel("Spreading Factor $SF$")
+            ax_hm.set_title("Usable Pass Coverage (%) & Daily Yield (CR 4/5)")
+    
+            for i in range(len(LORA_SFS)):
+                for j in range(len(LORA_BWS_KHZ)):
+                    is_opt = (
+                        LORA_SFS[i] == optimal_mode["sf"]
+                        and LORA_BWS_KHZ[j] == optimal_mode["bw_khz"]
                     )
-
-        plt.colorbar(im, ax=ax_hm, fraction=0.046, pad=0.04, label="Usable Pass Coverage (%)")
-
-        # Right: Reliability (Usable Pass Coverage %) vs. Daily Data Volume Pareto Plot
-        viable = [m for m in all_modes if m["pass_coverage_pct"] > 0]
-        if viable:
-            sc = ax_pareto.scatter(
-                [m["pass_coverage_pct"] for m in viable],
-                [m["daily_kb"] for m in viable],
-                c=[m["sf"] for m in viable],
-                cmap="viridis",
-                s=55,
-                alpha=0.8,
-                edgecolors="black",
-                linewidth=0.5,
-                zorder=3,
+                    txt_color = "black" if cov_grid[i, j] >= 25.0 else "white"
+                    ax_hm.text(
+                        j,
+                        i,
+                        cell_annotations[i][j],
+                        ha="center",
+                        va="center",
+                        fontsize=7.5,
+                        fontweight="bold" if is_opt else "normal",
+                        color=txt_color,
+                        )
+                    if is_opt:
+                        ax_hm.add_patch(
+                            plt.Rectangle(
+                                (j - 0.48, i - 0.48),
+                                0.96,
+                                0.96,
+                                fill=False,
+                                edgecolor="navy",
+                                linewidth=2.8,
+                            )
+                        )
+    
+            plt.colorbar(im, ax=ax_hm, fraction=0.046, pad=0.04, label="Usable Pass Coverage (%)")
+    
+            # Right: Reliability (Usable Pass Coverage %) vs. Daily Data Volume Pareto Plot
+            viable = [m for m in all_modes if m["pass_coverage_pct"] > 0]
+            if viable:
+                sc = ax_pareto.scatter(
+                    [m["pass_coverage_pct"] for m in viable],
+                    [m["daily_kb"] for m in viable],
+                    c=[m["sf"] for m in viable],
+                    cmap="viridis",
+                    s=55,
+                    alpha=0.8,
+                    edgecolors="black",
+                    linewidth=0.5,
+                    zorder=3,
+                )
+                plt.colorbar(sc, ax=ax_pareto, fraction=0.046, pad=0.04, label="Spreading Factor (SF)")
+    
+            ax_pareto.scatter(
+                [optimal_mode["pass_coverage_pct"]],
+                [optimal_mode["daily_kb"]],
+                color="black",
+                    facecolors="grey",
+                    edgecolors="black",
+                s=150,
+                marker="o",
+                zorder=5,
+                label=(
+                    f"Selected Optimal: SF{optimal_mode['sf']} / {optimal_mode['bw_khz']:g} kHz / "
+                    f"{optimal_mode['cr_label'].split()[0]}"
+                ),
             )
-            plt.colorbar(sc, ax=ax_pareto, fraction=0.046, pad=0.04, label="Spreading Factor (SF)")
-
-        ax_pareto.scatter(
-            [optimal_mode["pass_coverage_pct"]],
-            [optimal_mode["daily_kb"]],
-            color="crimson",
-            s=150,
-            marker="*",
-            zorder=5,
-            label=(
-                f"Selected Optimal: SF{optimal_mode['sf']} / {optimal_mode['bw_khz']:g} kHz / "
-                f"{optimal_mode['cr_label'].split()[0]}"
-            ),
-        )
-        ax_pareto.set_title("Reliability vs. Data Link Trade-Off (All 96 Modes)")
-        ax_pareto.set_xlabel("Usable Pass Coverage (%)")
-        ax_pareto.set_ylabel("Daily Downlink Capacity (kB/day)")
-        ax_pareto.set_xlim(-5, 105)
-        ax_pareto.set_yscale("symlog", linthresh=1.0)
-        ax_pareto.grid(True, linestyle="--", alpha=0.5)
-        ax_pareto.legend(loc="upper left", fontsize=8.5)
-
-        plt.tight_layout()
-        return fig
+            ax_pareto.set_title("Reliability vs. Data Link Trade-Off (All 96 Modes)")
+            ax_pareto.set_xlabel("Usable Pass Coverage (%)")
+            ax_pareto.set_ylabel("Daily Downlink Capacity (kB/day)")
+            #ax_pareto.set_xlim(-5, 105)
+            ax_pareto.set_yscale("symlog", linthresh=1.0)
+            ax_pareto.grid(True, linestyle="--", alpha=0.5)
+            ax_pareto.legend(loc="upper left", fontsize=8.5)
+    
+            plt.tight_layout()
+            return fig
 
     _opt_kind = (
         "success"
@@ -922,6 +936,7 @@ def _(
     mo,
     pass_geom,
     plt,
+    rc_tex,
     req_fade_margin_db,
     rx_nf_db,
 ):
@@ -938,97 +953,115 @@ def _(
         lora_sens_dbm = active_mode["lora_sens_dbm"]
         req_rx_dbm = lora_sens_dbm + req_fade_margin_db
 
-        fig, (ax_pr, ax_erg) = plt.subplots(1, 2, figsize=(12.0, 4.8))
 
-        # Left subplot: Received Power vs. Slant Range & LoRa Sensitivity Thresholds
-        ax_pr.plot(range_km, pr_dbm, color="#1f77b4", lw=2.4, zorder=4, label="Received Power ($P_r$)")
-        ax_pr.scatter([alt_km, horiz_km], [pr_dbm[0], pr_dbm[-1]], color="#1f77b4", s=45, zorder=5)
 
-        if active_mode["pass_coverage_pct"] > 0:
-            ax_pr.axvspan(
-                active_mode["d_min_km"],
-                active_mode["d_max_km"],
-                color="limegreen",
-                alpha=0.14,
-                label=f"Usable Pass Window ({active_mode['d_min_km']:.0f}–{active_mode['d_max_km']:.0f} km)",
+        with plt.rc_context(rc_tex):
+            fig, (ax_pr, ax_erg) = plt.subplots(1, 2, figsize=(12.0, 4.8))
+
+            # Left subplot: Received Power vs. Slant Range & LoRa Sensitivity Thresholds
+            ax_pr.plot(
+                range_km,
+                pr_dbm,
+                color="black",
+                linestyle="-",
+                lw=2.2,
+                zorder=4,
+                label="Received Power ($P_r$)",
+            )
+            ax_pr.scatter(
+                [alt_km, horiz_km],
+                [pr_dbm[0], pr_dbm[-1]],
+                color="black",
+                s=40,
+                zorder=5,
             )
 
-        for sf, snr_lim in sorted(LORA_SNR_THRESHOLDS_DB.items()):
-            sens = thermal_noise_dbm + snr_lim
-            if sf == sf_val:
-                ax_pr.axhline(
-                    sens,
-                    color="crimson",
-                    linestyle="-",
-                    lw=1.8,
-                    label=f"Active SF{sf} Floor ({sens:.1f} dBm)",
+            if active_mode["pass_coverage_pct"] > 0:
+                ax_pr.axvspan(
+                    active_mode["d_min_km"],
+                    active_mode["d_max_km"],
+                    color="limegreen",
+                    alpha=0.14,
+                    label=f"Usable Pass Window ({active_mode['d_min_km']:.0f}–{active_mode['d_max_km']:.0f} km)",
                 )
-                ax_pr.axhline(
-                    req_rx_dbm,
-                    color="darkorange",
-                    linestyle="-.",
-                    lw=1.6,
-                    label=f"SF{sf} + {req_fade_margin_db:.1f} dB Fade Margin ({req_rx_dbm:.1f} dBm)",
-                )
-            else:
-                ax_pr.axhline(sens, color="gray", linestyle="--", lw=0.9, alpha=0.5)
 
-        ax_pr.set_title(
-            f"Received Power & Sensitivity vs. Slant Range\n"
-            f"(SF{sf_val}, BW = {bw_khz:g} kHz, NF = {rx_nf_db:.1f} dB)"
-        )
-        ax_pr.set_xlabel("Slant Range $d$ (km)")
-        ax_pr.set_ylabel("Received Power (dBm)")
-        ax_pr.grid(True, linestyle="--", alpha=0.5)
-        ax_pr.legend(loc="upper right", fontsize=7.8)
+            for sf, snr_lim in sorted(LORA_SNR_THRESHOLDS_DB.items()):
+                sens = thermal_noise_dbm + snr_lim
+                if sf == sf_val:
+                    ax_pr.axhline(
+                        sens,
+                        color="black",
+                        linestyle="--",
+                        lw=1.6,
+                        label=f"Active SF{sf} Floor ({sens:.1f} dBm)",
+                    )
+                    ax_pr.axhline(
+                        req_rx_dbm,
+                        color="black",
+                        linestyle="-.",
+                        lw=1.6,
+                        label=f"SF{sf} + {req_fade_margin_db:.1f} dB Fade Margin ({req_rx_dbm:.1f} dBm)",
+                    )
+                else:
+                    ax_pr.axhline(sens, color="black", linestyle=":", lw=0.9, alpha=0.45)
 
-        ax_snr = ax_pr.secondary_yaxis(
-            "right",
-            functions=(
-                lambda p_dbm: p_dbm - thermal_noise_dbm,
-                lambda snr_db: snr_db + thermal_noise_dbm,
-            ),
-        )
-        ax_snr.set_ylabel("Received SNR (dB)")
-
-        # Right subplot: Ergodic Contact Time vs. Slant Range with Active Window Shaded
-        ax_erg.plot(
-            pass_geom["erg_ranges_km"],
-            pass_geom["erg_min_per_day"],
-            color="#2ca02c",
-            lw=2.2,
-            label="Cumulative Ergodic Contact (min/day)",
-        )
-        ax_erg.axvline(
-            horiz_km,
-            color="tab:red",
-            linestyle="--",
-            lw=1.4,
-            label=f"Radar Horizon ({horiz_km:.0f} km)",
-        )
-        if active_mode["pass_coverage_pct"] > 0:
-            ax_erg.axvspan(
-                active_mode["d_min_km"],
-                active_mode["d_max_km"],
-                color="limegreen",
-                alpha=0.18,
-                label=f"Active Usable Range ({active_mode['usable_min_per_day']:.1f} min/day)",
+            ax_pr.set_title(
+                f"Received Power & Sensitivity vs. Slant Range\n"
+                f"(SF{sf_val}, BW = {bw_khz:g} kHz, NF = {rx_nf_db:.1f} dB)"
             )
-        ax_erg.set_title(
-            f"Ergodic Contact Time vs. Slant Range\n"
-            f"(h = {alt_km:.0f} km, i = {pass_geom['inc_deg']:.1f}°, φ = {pass_geom['gs_lat_deg']:.1f}°)"
-        )
-        ax_erg.set_xlabel("Maximum Slant Range $d$ (km)")
-        ax_erg.set_ylabel("Average Contact Time (minutes/day)")
-        ax_erg.xaxis.set_minor_locator(AutoMinorLocator())
-        ax_erg.yaxis.set_minor_locator(AutoMinorLocator())
-        ax_erg.grid(True, linestyle="--", alpha=0.5)
-        ax_erg.set_xlim(0, pass_geom["erg_ranges_km"][-1])
-        ax_erg.set_ylim(bottom=0)
-        ax_erg.legend(loc="upper left", fontsize=8)
+            ax_pr.set_xlabel("Slant Range $d$ (km)")
+            ax_pr.set_ylabel("Received Power (dBm)")
+            ax_pr.grid(True, linestyle="--", alpha=0.5)
+            ax_pr.legend(loc="upper right", fontsize=8)
 
-        plt.tight_layout()
-        return fig
+            ax_snr = ax_pr.secondary_yaxis(
+                "right",
+                functions=(
+                    lambda p_dbm: p_dbm - thermal_noise_dbm,
+                    lambda snr_db: snr_db + thermal_noise_dbm,
+                ),
+            )
+            ax_snr.set_ylabel("Received SNR (dB)")
+
+            # Right subplot: Ergodic Contact Time vs. Slant Range with Active Window Shaded
+            ax_erg.plot(
+                pass_geom["erg_ranges_km"],
+                pass_geom["erg_min_per_day"],
+                color="black",
+                linestyle="-",
+                lw=2.2,
+                label="Cumulative Ergodic Contact (min/day)",
+            )
+            ax_erg.axvline(
+                horiz_km,
+                color="black",
+                linestyle="--",
+                lw=1.4,
+                label=f"Radar Horizon ({horiz_km:.0f} km)",
+            )
+            if active_mode["pass_coverage_pct"] > 0:
+                ax_erg.axvspan(
+                    active_mode["d_min_km"],
+                    active_mode["d_max_km"],
+                    color="limegreen",
+                    alpha=0.18,
+                    label=f"Active Usable Range ({active_mode['usable_min_per_day']:.1f} min/day)",
+                )
+            ax_erg.set_title(
+                f"Ergodic Contact Time vs. Slant Range\n"
+                f"($h = {alt_km:.0f}$ km, $i = {pass_geom['inc_deg']:.1f}^\\circ$, $\\phi = {pass_geom['gs_lat_deg']:.1f}^\\circ$)"
+            )
+            ax_erg.set_xlabel("Maximum Slant Range $d$ (km)")
+            ax_erg.set_ylabel("Average Contact Time (minutes/day)")
+            ax_erg.xaxis.set_minor_locator(AutoMinorLocator())
+            ax_erg.yaxis.set_minor_locator(AutoMinorLocator())
+            ax_erg.grid(True, linestyle="--", alpha=0.5)
+            ax_erg.set_xlim(0, pass_geom["erg_ranges_km"][-1])
+            ax_erg.set_ylim(bottom=0)
+            ax_erg.legend(loc="upper left", fontsize=8)
+
+            plt.tight_layout()
+            return fig
 
     mo.vstack(
         [
@@ -1057,99 +1090,118 @@ def _(AutoMinorLocator, active_mode, mo, pass_geom, payload_bytes, plt):
         pkt_limit = active_mode["pkt_drift_limit_hz_s"]
         sym_limit = active_mode["sym_chirp_limit_hz_s"]
 
-        fig, (ax_shift, ax_rate) = plt.subplots(1, 2, figsize=(12.0, 4.8))
+        rc_tex = {
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "STIXGeneral", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+        }
 
-        # Left: Static Doppler Shift vs. Slant Range
-        ax_shift.plot(range_km, doppler_khz, color="tab:blue", lw=2.2, label="Approaching (+Δf)")
-        ax_shift.plot(
-            range_km,
-            -doppler_khz,
-            color="tab:orange",
-            lw=2.2,
-            linestyle="--",
-            label="Receding (-Δf)",
-        )
-        ax_shift.axhline(
-            0.5 * bw_khz,
-            color="crimson",
-            linestyle=":",
-            lw=1.5,
-            label=f"±BW/2 Limit (±{0.5 * bw_khz:.1f} kHz)",
-        )
-        ax_shift.axhline(-0.5 * bw_khz, color="crimson", linestyle=":", lw=1.5)
-        ax_shift.scatter([alt_km], [0.0], color="tab:green", s=50, zorder=5)
-        ax_shift.scatter(
-            [horiz_km, horiz_km],
-            [doppler_max_khz, -doppler_max_khz],
-            color="tab:red",
-            s=50,
-            zorder=5,
-            label=f"Horizon (±{doppler_max_khz:.2f} kHz)",
-        )
-        ax_shift.set_title(f"Doppler Shift vs. Slant Range (BW = {bw_khz:g} kHz)")
-        ax_shift.set_xlabel("Slant Range $d$ (km)")
-        ax_shift.set_ylabel("Doppler Shift $\\Delta f$ (kHz)")
-        ax_shift.xaxis.set_minor_locator(AutoMinorLocator())
-        ax_shift.yaxis.set_minor_locator(AutoMinorLocator())
-        ax_shift.grid(True, linestyle="--", alpha=0.5)
-        ax_shift.legend(loc="best", fontsize=8)
+        with plt.rc_context(rc_tex):
+            fig, (ax_shift, ax_rate) = plt.subplots(1, 2, figsize=(12.0, 4.8))
 
-        # Right: Log-Scale Doppler Rate Magnitude vs. Active LoRa Limits
-        ax_rate.plot(
-            range_km[:-1],
-            doppler_rate_mag_hz_s[:-1],
-            color="tab:cyan",
-            lw=2.2,
-            label=r"Pass $\left|\frac{d(\Delta f)}{dt}\right|$ (Hz/s)",
-        )
-        ax_rate.axhline(
-            pkt_limit,
-            color="darkorange",
-            linestyle="-.",
-            lw=1.8,
-            label=f"Intra-Packet Drift Limit ({pkt_limit:.1f} Hz/s, {payload_bytes}B)",
-        )
-        ax_rate.axhline(
-            sym_limit,
-            color="crimson",
-            linestyle=":",
-            lw=1.8,
-            label=f"Intra-Symbol Chirp Limit ({sym_limit:.1f} Hz/s)",
-        )
-        ax_rate.scatter(
-            [alt_km],
-            [max_rate_hz_s],
-            color="tab:green",
-            s=55,
-            zorder=5,
-            label=f"Zenith Peak ({max_rate_hz_s:.1f} Hz/s)",
-        )
-        if active_mode["zenith_blind_spot_km"] > 0:
-            ax_rate.axvspan(
-                alt_km,
-                active_mode["d_min_km"],
-                color="crimson",
-                alpha=0.18,
-                label=f"Zenith Blind Spot (d < {active_mode['d_min_km']:.0f} km)",
+            # Left: Static Doppler Shift vs. Slant Range
+            ax_shift.plot(
+                range_km,
+                doppler_khz,
+                color="black",
+                linestyle="-",
+                lw=2.2,
+                label="Approaching ($+\\Delta f$)",
             )
+            ax_shift.plot(
+                range_km,
+                -doppler_khz,
+                color="black",
+                linestyle="--",
+                lw=2.0,
+                label="Receding ($-\\Delta f$)",
+            )
+            ax_shift.axhline(
+                0.5 * bw_khz,
+                color="black",
+                linestyle=":",
+                lw=1.5,
+                label=f"$\\pm$BW/2 Limit ($\\pm${0.5 * bw_khz:.1f} kHz)",
+            )
+            ax_shift.axhline(-0.5 * bw_khz, color="black", linestyle=":", lw=1.5)
+            ax_shift.scatter([alt_km], [0.0], color="black", marker="o", s=45, zorder=5)
+            ax_shift.scatter(
+                [horiz_km, horiz_km],
+                [doppler_max_khz, -doppler_max_khz],
+                facecolors="white",
+                edgecolors="black",
+                marker="s",
+                linewidths=1.4,
+                s=45,
+                zorder=5,
+                label=f"Horizon ($\\pm${doppler_max_khz:.2f} kHz)",
+            )
+            ax_shift.set_title(f"Doppler Shift vs. Slant Range (BW = {bw_khz:g} kHz)")
+            ax_shift.set_xlabel("Slant Range $d$ (km)")
+            ax_shift.set_ylabel("Doppler Shift $\\Delta f$ (kHz)")
+            ax_shift.xaxis.set_minor_locator(AutoMinorLocator())
+            ax_shift.yaxis.set_minor_locator(AutoMinorLocator())
+            ax_shift.grid(True, linestyle="--", alpha=0.5)
+            ax_shift.legend(loc="best", fontsize=8)
 
-        ax_rate.set_yscale("log")
-        ax_rate.set_ylim(
-            bottom=max(0.5, min(max_rate_hz_s, pkt_limit) * 0.05),
-            top=max(sym_limit, max_rate_hz_s) * 2.5,
-        )
-        ax_rate.set_title(
-            f"Doppler Drift Rate vs. LoRa Limits\n"
-            f"(SF{active_mode['sf']}, BW = {bw_khz:g} kHz, {'LDRO On' if active_mode['ldro_enabled'] else 'LDRO Off'})"
-        )
-        ax_rate.set_xlabel("Slant Range $d$ (km)")
-        ax_rate.set_ylabel(r"Drift Rate $\left|\frac{d(\Delta f)}{dt}\right|$ (Hz/s)")
-        ax_rate.xaxis.set_minor_locator(AutoMinorLocator())
-        ax_rate.grid(True, which="both", linestyle="--", alpha=0.45)
-        ax_rate.legend(loc="best", fontsize=8)
+            # Right: Log-Scale Doppler Rate Magnitude vs. Active LoRa Limits
+            ax_rate.plot(
+                range_km[:-1],
+                doppler_rate_mag_hz_s[:-1],
+                color="black",
+                linestyle="-",
+                lw=2.2,
+                label=r"Pass $\left|\frac{d(\Delta f)}{dt}\right|$ (Hz/s)",
+            )
+            ax_rate.axhline(
+                pkt_limit,
+                color="black",
+                linestyle="--",
+                lw=1.6,
+                label=f"Intra-Packet Drift Limit ({pkt_limit:.1f} Hz/s, {payload_bytes}B)",
+            )
+            ax_rate.axhline(
+                sym_limit,
+                color="black",
+                linestyle=":",
+                lw=1.6,
+                label=f"Intra-Symbol Chirp Limit ({sym_limit:.1f} Hz/s)",
+            )
+            ax_rate.scatter(
+                [alt_km],
+                [max_rate_hz_s],
+                color="black",
+                marker="o",
+                s=45,
+                zorder=5,
+                label=f"Zenith Peak ({max_rate_hz_s:.1f} Hz/s)",
+            )
+            if active_mode["zenith_blind_spot_km"] > 0:
+                ax_rate.axvspan(
+                    alt_km,
+                    active_mode["d_min_km"],
+                    color="crimson",
+                    alpha=0.18,
+                    label=f"Zenith Blind Spot (d < {active_mode['d_min_km']:.0f} km)",
+                )
 
-        plt.tight_layout()
-        return fig
+            ax_rate.set_yscale("log")
+            ax_rate.set_ylim(
+                bottom=max(0.5, min(max_rate_hz_s, pkt_limit) * 0.05),
+                top=max(sym_limit, max_rate_hz_s) * 2.5,
+            )
+            ax_rate.set_title(
+                f"Doppler Drift Rate vs. LoRa Limits\n"
+                f"(SF{active_mode['sf']}, BW = {bw_khz:g} kHz, {'LDRO On' if active_mode['ldro_enabled'] else 'LDRO Off'})"
+            )
+            ax_rate.set_xlabel("Slant Range $d$ (km)")
+            ax_rate.set_ylabel(r"Drift Rate $\left|\frac{d(\Delta f)}{dt}\right|$ (Hz/s)")
+            ax_rate.xaxis.set_minor_locator(AutoMinorLocator())
+            ax_rate.grid(True, which="both", linestyle="--", alpha=0.45)
+            ax_rate.legend(loc="best", fontsize=8)
+
+            plt.tight_layout()
+            return fig
 
     _max_pkt_drift_hz = pass_geom["max_doppler_rate_hz_s"] * active_mode["t_packet_s"]
     _max_pkt_bins = _max_pkt_drift_hz / active_mode["lora_bin_hz"]
