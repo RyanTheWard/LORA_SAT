@@ -690,7 +690,7 @@ def _(
 
         with plt.rc_context(rc_tex):
             fig, (ax_hm, ax_pareto) = plt.subplots(1, 2, figsize=(12.0, 5.0))
-    
+
             # Left: 6x4 (SF x BW) Usable Pass Coverage & Daily Data Heatmap
             im = ax_hm.imshow(cov_grid, cmap="RdYlGn", vmin=0.0, vmax=100.0, aspect="auto")
             ax_hm.set_xticks(range(len(LORA_BWS_KHZ)))
@@ -700,7 +700,7 @@ def _(
             ax_hm.set_xlabel("LoRa Bandwidth $BW$")
             ax_hm.set_ylabel("Spreading Factor $SF$")
             ax_hm.set_title("Usable Pass Coverage (%) & Daily Yield (CR 4/5)")
-    
+
             for i in range(len(LORA_SFS)):
                 for j in range(len(LORA_BWS_KHZ)):
                     is_opt = (
@@ -729,9 +729,9 @@ def _(
                                 linewidth=2.8,
                             )
                         )
-    
+
             plt.colorbar(im, ax=ax_hm, fraction=0.046, pad=0.04, label="Usable Pass Coverage (%)")
-    
+
             # Right: Reliability (Usable Pass Coverage %) vs. Daily Data Volume Pareto Plot
             viable = [m for m in all_modes if m["pass_coverage_pct"] > 0]
             if viable:
@@ -747,7 +747,7 @@ def _(
                     zorder=3,
                 )
                 plt.colorbar(sc, ax=ax_pareto, fraction=0.046, pad=0.04, label="Spreading Factor (SF)")
-    
+
             ax_pareto.scatter(
                 [optimal_mode["pass_coverage_pct"]],
                 [optimal_mode["daily_kb"]],
@@ -769,7 +769,7 @@ def _(
             ax_pareto.set_yscale("symlog", linthresh=1.0)
             ax_pareto.grid(True, linestyle="--", alpha=0.5)
             ax_pareto.legend(loc="upper left", fontsize=8.5)
-    
+
             plt.tight_layout()
             return fig
 
@@ -1048,7 +1048,7 @@ def _(
                     label=f"Active Usable Range ({active_mode['usable_min_per_day']:.1f} min/day)",
                 )
             ax_erg.set_title(
-                f"Ergodic Contact Time vs. Slant Range\n"
+                f"Average Contact Time vs. Slant Range\n"
                 f"($h = {alt_km:.0f}$ km, $i = {pass_geom['inc_deg']:.1f}^\\circ$, $\\phi = {pass_geom['gs_lat_deg']:.1f}^\\circ$)"
             )
             ax_erg.set_xlabel("Maximum Slant Range $d$ (km)")
